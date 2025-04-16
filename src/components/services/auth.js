@@ -1,110 +1,109 @@
 import { auth, db } from './firebase';
-import { useNavigate } from 'react-router-dom';
-import { 
-    createUserWithEmailAndPassword, 
-    signInWithEmailAndPassword, 
-    signOut, 
+import {
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut,
     sendEmailVerification,
-    sendPasswordResetEmail
+    sendPasswordResetEmail,
 } from 'firebase/auth';
-import { 
-    doc, 
-    setDoc, 
-    collection, 
-    addDoc, 
-    query, 
-    where, 
+import {
+    doc,
+    setDoc,
+    collection,
+    addDoc,
+    query,
+    where,
     getDocs,
-    serverTimestamp
+    serverTimestamp,
 } from 'firebase/firestore';
 
-// Sign up new user
 export const signup = async (email, password) => {
     try {
-        // Create user in Firebase Auth
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
-        
-        // Send verification email
-        await sendEmailVerification(user);
-        
-        // Create user document in Firestore
-        await setDoc(doc(db, 'users', user.uid), {
-            uid: user.uid,
-            email,
-            createdAt: serverTimestamp(),
-            twoFactorEnabled: false,
-            emailVerified: false
-        });
-        
-        // Create a welcome invoice
-        await addDoc(collection(db, 'invoices'), {
-            userId: user.uid,
-            amount: 1000, // $10.00
-            date: serverTimestamp(),
-            status: 'Pending',
-            description: 'Welcome Invoice'
-        });
-        
-        console.log("User created successfully:", user.uid);
+        try {
+            await sendEmailVerification(user);
+        } catch (emailError) {
+            console.error('Email verification error:', emailError);
+            throw new Error('Failed to send verification email');
+        }
+        try {
+            await setDoc(doc(db, 'users', user.uid), {
+                uid: user.uid,
+                email,
+                createdAt: serverTimestamp(),
+                twoFactorEnabled: false,
+                emailVerified: false,
+            });
+        } catch (docError) {
+            console.error('User doc error:', docError);
+            throw new Error('Failed to create user profile');
+        }
+        try {
+            await addDoc(collection(db, 'invoices'), {
+                userId: user.uid,
+                amount: 1000,
+                date: serverTimestamp(),
+                status: 'Pending',
+                description: 'Welcome Invoice',
+            });
+        } catch (invoiceError) {
+            console.error('Invoice error:', invoiceError);
+            throw new Error('Failed to create welcome invoice');
+        }
         return user;
     } catch (error) {
-        console.error("Error in signup function:", error);
+        console.error('Signup error:', error.code, error.message);
         throw error;
     }
 };
 
-// Sign in existing user
 export const signin = async (email, password) => {
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        console.log("User signed in successfully:", userCredential.user.uid);
         return userCredential.user;
     } catch (error) {
-        console.error("Error in signin function:", error);
+        console.error('Signin error:', error.code, error.message);
         throw error;
     }
 };
 
-// Sign out user
 export const signout = async () => {
     try {
         await signOut(auth);
-        console.log("User signed out successfully");
     } catch (error) {
-        console.error("Error signing out:", error);
+        console.error('Signout error:', error);
         throw error;
     }
 };
 
-// Reset password
 export const resetPassword = async (email) => {
     try {
         await sendPasswordResetEmail(auth, email);
-        console.log("Password reset email sent to:", email);
     } catch (error) {
-        console.error("Error sending password reset:", error);
+        console.error('Reset password error:', error);
         throw error;
     }
 };
 
-// Get user invoices
 export const getUserInvoices = async (userId) => {
     try {
         const q = query(collection(db, 'invoices'), where('userId', '==', userId));
         const snapshot = await getDocs(q);
-        const invoices = snapshot.docs.map(doc => ({ 
-            id: doc.id, 
-            ...doc.data(),
-            // Convert Firebase timestamp to Date if it exists
-            date: doc.data().date ? 
-                  (doc.data().date.toDate ? doc.data().date.toDate() : doc.data().date) 
-                  : new Date()
-        }));
-        console.log(`Retrieved ${invoices.length} invoices for user:`, userId);
-        return invoices;
+        return snapshot.docs.map((doc) => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                date: data.date
+                    ? data.date.toDate
+                        ? data.date.toDate()
+                        : new Date(data.date)
+                    : new Date(),
+            };
+        });
     } catch (error) {
-        console.error("Error getting user invoices:", error);
+        console.error('Get invoices error:', error);
         throw error;
     }
 };

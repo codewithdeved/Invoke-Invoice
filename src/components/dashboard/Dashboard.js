@@ -1,28 +1,18 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/AuthProvider';
 import { getUserInvoices } from '../services/auth';
 import Navbar from '../navbar/Navbar';
 
-import '../styles/main.css';
-
 const Dashboard = () => {
-    const { currentUser } = useAuth();
+    const { currentUser, userProfile } = useAuth();
     const navigate = useNavigate();
+    const [loading, setLoading] = useState(true);
     const [invoices, setInvoices] = useState([]);
-    const [isDragging, setIsDragging] = useState(false);
-    const invoiceCardRef = useRef(null);
-    const [position, setPosition] = useState({ x: 0, y: 0 });
-    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
     useEffect(() => {
-        if (!currentUser) {
-            navigate('/signin');
-            return;
-        }
-
-        if (!currentUser.emailVerified) {
-            navigate('/signin');
+        if (!currentUser || !currentUser.emailVerified) {
+            navigate('/signin', { replace: true });
             return;
         }
 
@@ -32,54 +22,41 @@ const Dashboard = () => {
                 setInvoices(userInvoices);
             } catch (error) {
                 console.error("Error fetching invoices:", error);
+            } finally {
+                setLoading(false);
             }
         };
-        
+
         fetchInvoices();
     }, [currentUser, navigate]);
 
-    // Custom draggable implementation to replace react-draggable
-    const handleMouseDown = (e) => {
-        setIsDragging(true);
-        setDragStart({
-            x: e.clientX - position.x,
-            y: e.clientY - position.y
-        });
-    };
-
-    const handleMouseMove = (e) => {
-        if (!isDragging) return;
-        
-        setPosition({
-            x: e.clientX - dragStart.x,
-            y: e.clientY - dragStart.y
-        });
-    };
-
-    const handleMouseUp = () => {
-        setIsDragging(false);
-    };
-
-    useEffect(() => {
-        if (isDragging) {
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-        } else {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-        }
-
-        return () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isDragging, dragStart]);
+    if (loading) {
+        return (
+            <div className="page">
+                <Navbar />
+                <div className="dashboard loading-container">
+                    <div className="loading-spinner"></div>
+                    <p>Loading your dashboard...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="page">
             <Navbar />
             <div className="dashboard">
-                <h2>Welcome to Your Dashboard</h2>
+                <div className="dashboard-header">
+                    <h2>Welcome to Dashboard</h2>
+                    <p>Hello, {userProfile?.displayName || 'User'}! Manage your invoices and payments here.</p>
+                </div>
+                <div className="dashboard-content">
+                    <div className="dashboard-card">
+                        <h3>Welcome to Invoke Invoice</h3>
+                        <p>Your professional invoicing solution</p>
+                        <p>We're pleased to have you on board. Once you start creating invoices, they will appear here.</p>
+                    </div>
+                </div>
             </div>
         </div>
     );
