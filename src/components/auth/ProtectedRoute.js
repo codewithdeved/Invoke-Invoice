@@ -3,9 +3,9 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../services/AuthProvider';
 
 const ProtectedRoute = ({ children }) => {
-    const { currentUser, loading } = useAuth();
+    const { currentUser, loading, loggingOut } = useAuth();
 
-    if (loading) {
+    if (loading || loggingOut) {
         return (
             <div className="loading-container">
                 <div className="loading-spinner"></div>
@@ -14,8 +14,8 @@ const ProtectedRoute = ({ children }) => {
         );
     }
 
-    if (!currentUser || !currentUser.emailVerified) {
-        return <Navigate to="/signin" replace />;
+    if (!currentUser) {
+        return <Navigate to="/signin" state={{ from: window.location.pathname }} replace />;
     }
 
     return children;

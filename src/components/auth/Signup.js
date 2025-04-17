@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signup } from '../services/auth';
-import { useAuth } from '../services/AuthProvider';
 import Navbar from '../navbar/Navbar';
 
 const Signup = () => {
@@ -11,7 +10,6 @@ const Signup = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const { currentUser } = useAuth(); // Keep for success redirect
     const navigate = useNavigate();
 
     const validatePassword = () => {
@@ -25,28 +23,21 @@ const Signup = () => {
         setError('');
         setSuccess('');
         setIsSubmitting(true);
-        // Optional: Use global isSubmittingForm if implemented in AuthProvider
-        // setIsSubmittingForm(true);
 
         const passwordError = validatePassword();
         if (passwordError) {
             setError(passwordError);
             setIsSubmitting(false);
-            // setIsSubmittingForm(false);
             return;
         }
 
         try {
             await signup(email, password);
-            setSuccess('Account created! Please check your email (including spam/junk) to verify your account, then sign in.');
+            setSuccess('Account created! Redirecting to sign in...');
             setEmail('');
             setPassword('');
             setConfirmPassword('');
-            setTimeout(() => {
-                navigate('/signin', { replace: true });
-                setIsSubmitting(false);
-                // setIsSubmittingForm(false);
-            }, 2000);
+            navigate('/signin', { replace: true });
         } catch (err) {
             let errorMessage = 'Failed to create account';
             if (err.code === 'auth/email-already-in-use') {
@@ -60,17 +51,19 @@ const Signup = () => {
             }
             setError(errorMessage);
             setIsSubmitting(false);
-            // setIsSubmittingForm(false);
         }
     };
 
-    if (success || (currentUser && currentUser.emailVerified)) {
+    if (success) {
         return (
             <div className="page">
                 <Navbar />
                 <div className="auth-wrapper">
                     <div className="auth-container">
-                        <p className="success-text">{success || 'Redirecting to dashboard...'}</p>
+                        <p className="success-text">{success}</p>
+                        <Link to="/signin" className="btn btn-primary w-full">
+                            Go to Sign In
+                        </Link>
                     </div>
                 </div>
             </div>

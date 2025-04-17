@@ -4,9 +4,21 @@ import { useAuth } from '../services/AuthProvider';
 import Navbar from '../navbar/Navbar';
 
 const LandingPage = () => {
-    const { currentUser, loading } = useAuth();
+    const { currentUser, loading, loggingOut } = useAuth();
 
-    if (!loading && currentUser && currentUser.emailVerified) {
+    if (loading || loggingOut) {
+        return (
+            <div className="page">
+                <Navbar />
+                <div className="loading-container">
+                    <div className="loading-spinner"></div>
+                    <p>Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (currentUser) {
         return <Navigate to="/dashboard" replace />;
     }
 

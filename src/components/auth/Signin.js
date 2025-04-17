@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { signin } from '../services/auth';
 import { useAuth } from '../services/AuthProvider';
 import Navbar from '../navbar/Navbar';
@@ -8,33 +8,46 @@ const Signin = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
+    const [notification, setNotification] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const { currentUser, setCurrentUser } = useAuth();
+    const { setCurrentUser, loading, loggingOut } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // Clear any redirection notifications after a delay
+    useEffect(() => {
+        if (notification) {
+            const timer = setTimeout(() => {
+                setNotification('');
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [notification]);
+
+    // Check if user was redirected from signup or ProtectedRoute
+    useEffect(() => {
+        const from = location.state?.from;
+        if (from === '/signup') {
+            setEmail('');
+            setPassword('');
+            document.getElementById('email')?.focus();
+        }
+    }, [location]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        setSuccess('');
+        setNotification('');
         setIsSubmitting(true);
-        // Optional: Use global isSubmittingForm
-        // setIsSubmittingForm(true);
 
         try {
             const userCredential = await signin(email, password);
-            const user = userCredential.user;
-            // Refresh user to get latest emailVerified status
-            await user.reload();
-            setCurrentUser({ ...user });
-            setSuccess('Login successful! Redirecting...');
-            setEmail('');
-            setPassword('');
+            setCurrentUser(userCredential.user);
+            setNotification('Redirecting...');
             setTimeout(() => {
-                navigate('/dashboard', { replace: true });
-                setIsSubmitting(false);
-                // setIsSubmittingForm(false);
-            }, 500);
+                const redirectTo = location.state?.from || '/dashboard';
+                navigate(redirectTo, { replace: true });
+            }, 1000);
         } catch (err) {
             let errorMessage = 'Failed to sign in';
             if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
@@ -48,18 +61,16 @@ const Signin = () => {
             }
             setError(errorMessage);
             setIsSubmitting(false);
-            // setIsSubmittingForm(false);
         }
     };
 
-    if (success || (currentUser && currentUser.emailVerified)) {
+    if (loading || loggingOut) {
         return (
             <div className="page">
                 <Navbar />
-                <div className="auth-wrapper">
-                    <div className="auth-container">
-                        <p className="success-text">{success || 'Redirecting to dashboard...'}</p>
-                    </div>
+                <div className="loading-container">
+                    <div className="loading-spinner"></div>
+                    <p>Loading...</p>
                 </div>
             </div>
         );
@@ -69,6 +80,11 @@ const Signin = () => {
         <div className="page">
             <Navbar />
             <div className="auth-wrapper">
+                {notification && (
+                    <div className="notification success-notification">
+                        <p>{notification}</p>
+                    </div>
+                )}
                 <div className="auth-container">
                     <div className="auth-header">
                         <h2>Sign In</h2>

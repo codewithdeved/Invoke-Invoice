@@ -3,7 +3,6 @@ import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     signOut,
-    sendEmailVerification,
     sendPasswordResetEmail,
 } from 'firebase/auth';
 import {
@@ -22,18 +21,11 @@ export const signup = async (email, password) => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
         try {
-            await sendEmailVerification(user);
-        } catch (emailError) {
-            console.error('Email verification error:', emailError);
-            throw new Error('Failed to send verification email');
-        }
-        try {
             await setDoc(doc(db, 'users', user.uid), {
                 uid: user.uid,
                 email,
                 createdAt: serverTimestamp(),
                 twoFactorEnabled: false,
-                emailVerified: false,
             });
         } catch (docError) {
             console.error('User doc error:', docError);
@@ -51,7 +43,7 @@ export const signup = async (email, password) => {
             console.error('Invoice error:', invoiceError);
             throw new Error('Failed to create welcome invoice');
         }
-        return user;
+        return userCredential;
     } catch (error) {
         console.error('Signup error:', error.code, error.message);
         throw error;
@@ -61,7 +53,7 @@ export const signup = async (email, password) => {
 export const signin = async (email, password) => {
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        return userCredential.user;
+        return userCredential;
     } catch (error) {
         console.error('Signin error:', error.code, error.message);
         throw error;
