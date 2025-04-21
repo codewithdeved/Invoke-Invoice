@@ -13,10 +13,10 @@ export const AuthProvider = ({ children }) => {
     const [userProfile, setUserProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [loggingOut, setLoggingOut] = useState(false);
+    const [isSignupTransition, setIsSignupTransition] = useState(false);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
-            console.log('Auth state changed:', user);
             try {
                 if (user) {
                     setCurrentUser(user);
@@ -30,17 +30,12 @@ export const AuthProvider = ({ children }) => {
                     setUserProfile(null);
                 }
             } catch (error) {
-                console.error('Auth state error:', error);
                 setCurrentUser(null);
                 setUserProfile(null);
             } finally {
                 setLoading(false);
-                setLoggingOut(false); // Always reset loggingOut after auth state updates
+                setLoggingOut(false);
             }
-        }, (error) => {
-            console.error('onAuthStateChanged error:', error);
-            setLoading(false);
-            setLoggingOut(false);
         });
 
         return unsubscribe;
@@ -51,9 +46,11 @@ export const AuthProvider = ({ children }) => {
         userProfile,
         loading,
         loggingOut,
+        isSignupTransition,
         setCurrentUser,
         setUserProfile,
         setLoggingOut,
+        setIsSignupTransition
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

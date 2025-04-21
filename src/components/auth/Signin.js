@@ -1,131 +1,200 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { signin } from '../services/auth';
 import { useAuth } from '../services/AuthProvider';
 import Navbar from '../navbar/Navbar';
+import { AuthFormInput } from '../utils/AuthFormInput';
+import { AuthButton } from '../utils/AuthButton';
+import { Notification } from '../utils/Notification';
+import { useAuthForm } from '../utils/useAuthForm';
+import { validators } from '../utils/validators';
 
 const Signin = () => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
-    const [notification, setNotification] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const { setCurrentUser, loading, loggingOut } = useAuth();
-    const navigate = useNavigate();
+    const { currentUser, setCurrentUser, setIsSignupTransition, loading } = useAuth();
     const location = useLocation();
-
-    // Clear any redirection notifications after a delay
+    const navigate = useNavigate();
+    const passwordInputRef = useRef(null);
+    const redirectTimerRef = useRef(null);
+    const [signupInProgress, setSignupInProgress] = useState(false);
+    
+    const signupEmail = location.state?.signupEmail || '';
+    const autoFocusPassword = location.state?.autoFocusPassword || false;
+    const from = location.state?.from;
+    
+    const { 
+        formData, 
+        errors,
+        notification, 
+        isSubmitting,
+        handleChange,
+        setFieldValue,
+        validateForm,
+        handleAuthError
+    } = useAuthForm({ 
+        email: signupEmail,
+        password: '' 
+    });
+    
     useEffect(() => {
-        if (notification) {
-            const timer = setTimeout(() => {
-                setNotification('');
-            }, 3000);
-            return () => clearTimeout(timer);
+        return () => {
+            if (redirectTimerRef.current) {
+                clearTimeout(redirectTimerRef.current);
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (currentUser && !loading) {
+            navigate('/dashboard', { replace: true });
         }
-    }, [notification]);
+    }, [currentUser, loading, navigate]);
 
-    // Check if user was redirected from signup or ProtectedRoute
     useEffect(() => {
-        const from = location.state?.from;
+        if (autoFocusPassword && passwordInputRef.current) {
+            setTimeout(() => {
+                passwordInputRef.current.focus();
+            }, 100);
+        }
+    }, [autoFocusPassword]);
+
+    useEffect(() => {
         if (from === '/signup') {
-            setEmail('');
-            setPassword('');
-            document.getElementById('email')?.focus();
+            setSignupInProgress(true);
+            setIsSignupTransition(true);
+            setSignupInProgress(false);
         }
-    }, [location]);
+    }, [from, setIsSignupTransition]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
-        setNotification('');
-        setIsSubmitting(true);
-
+        
+        if (signupInProgress) {
+            return;
+        }
+        
+        const validationRules = {
+            email: [validators.required, validators.email],
+            password: [validators.required]
+        };
+        
+        if (!validateForm(validationRules)) {
+            return;
+        }
+    
         try {
-            const userCredential = await signin(email, password);
-            setCurrentUser(userCredential.user);
-            setNotification('Redirecting...');
-            setTimeout(() => {
-                const redirectTo = location.state?.from || '/dashboard';
-                navigate(redirectTo, { replace: true });
-            }, 1000);
-        } catch (err) {
-            let errorMessage = 'Failed to sign in';
-            if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-                errorMessage = 'Invalid email or password';
-            } else if (err.code === 'auth/too-many-requests') {
-                errorMessage = 'Too many attempts. Try again later.';
-            } else if (err.code === 'auth/network-request-failed') {
-                errorMessage = 'Network error. Check your connection.';
-            } else if (err.message) {
-                errorMessage = err.message;
+            const userCredential = await signin(formData.email, formData.password);
+            
+            if (!userCredential?.user) {
+                throw new Error('Unable to sign in. Please try again.');
             }
-            setError(errorMessage);
-            setIsSubmitting(false);
+            
+            // Update current user
+            setCurrentUser(userCredential.user);
+            setIsSignupTransition(false);
+            
+            // Navigate to dashboard immediately
+            navigate('/dashboard', { replace: true });
+        } catch (err) {
+            handleAuthError(err);
         }
     };
 
-    if (loading || loggingOut) {
-        return (
-            <div className="page">
-                <Navbar />
-                <div className="loading-container">
-                    <div className="loading-spinner"></div>
-                    <p>Loading...</p>
-                </div>
-            </div>
-        );
-    }
+    // const handleSubmit = async (e) => {
+    //     e.preventDefault();
+        
+    //     if (signupInProgress) {
+    //         return;
+    //     }
+        
+    //     const validationRules = {
+    //         email: [validators.required, validators.email],
+    //         password: [validators.required]
+    //     };
+        
+    //     if (!validateForm(validationRules)) {
+    //         return;
+    //     }
+
+    //     try {
+    //         const userCredential = await signin(formData.email, formData.password);
+            
+    //         if (!userCredential?.user) {
+    //             throw new Error('Unable to sign in. Please try again.');
+    //         }
+            
+    //         if (setCurrentUser) {
+    //             setCurrentUser(userCredential.user);
+    //             setIsSignupTransition(false);
+                
+    //             redirectTimerRef.current = setTimeout(() => {
+    //                 navigate('/dashboard', { replace: true });
+                    
+    //                 setTimeout(() => {
+    //                     if (window.location.pathname !== '/dashboard') {
+    //                         window.location.href = '/dashboard';
+    //                     }
+    //                 }, 200);
+    //             }, 1000);
+    //         } else {
+    //             throw new Error('Authentication system is not initialized properly.');
+    //         }
+    //     } catch (err) {
+    //         handleAuthError(err);
+    //     }
+    // };
 
     return (
         <div className="page">
             <Navbar />
             <div className="auth-wrapper">
-                {notification && (
-                    <div className="notification success-notification">
-                        <p>{notification}</p>
-                    </div>
-                )}
+                <Notification 
+                    message={notification} 
+                    onClose={() => {}}
+                />
+                
                 <div className="auth-container">
                     <div className="auth-header">
                         <h2>Sign In</h2>
                         <p>Access your Invoke Invoices account</p>
                     </div>
-                    <form onSubmit={handleSubmit}>
-                        <div className="form-group">
-                            <label htmlFor="email">Email</label>
-                            <input
-                                id="email"
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                                disabled={isSubmitting}
-                                autoComplete="email"
-                                placeholder="Enter your email"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label htmlFor="password">Password</label>
-                            <input
-                                id="password"
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                                disabled={isSubmitting}
-                                autoComplete="current-password"
-                                placeholder="Enter your password"
-                            />
-                        </div>
-                        {error && <p className="error-text">{error}</p>}
-                        <button
-                            type="submit"
-                            className="btn btn-primary w-full"
-                            disabled={isSubmitting}
+                    
+                    <form onSubmit={handleSubmit} noValidate>
+                        <AuthFormInput
+                            id="email"
+                            type="email"
+                            value={formData.email}
+                            onChange={handleChange}
+                            name="email"
+                            disabled={isSubmitting || signupInProgress}
+                            autoComplete="email"
+                            placeholder="Enter your email"
+                            label="Email"
+                            error={errors.email}
+                        />
+                        
+                        <AuthFormInput
+                            id="password"
+                            type="password"
+                            value={formData.password}
+                            onChange={handleChange}
+                            name="password"
+                            disabled={isSubmitting || signupInProgress}
+                            autoComplete="current-password"
+                            placeholder="Enter your password"
+                            label="Password"
+                            error={errors.password}
+                            ref={passwordInputRef}
+                        />
+                        
+                        <AuthButton
+                            disabled={isSubmitting || signupInProgress}
+                            isLoading={isSubmitting || signupInProgress}
+                            loadingText={signupInProgress ? "Creating Account..." : "Signing In..."}
                         >
-                            {isSubmitting ? 'Signing In...' : 'Sign In'}
-                        </button>
+                            Sign In
+                        </AuthButton>
                     </form>
+                    
                     <div className="auth-links">
                         <p className="auth-link">
                             Don't have an account? <Link to="/signup">Sign Up</Link>

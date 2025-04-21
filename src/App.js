@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './components/services/AuthProvider';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import Dashboard from './components/dashboard/Dashboard';
-import LandingPage from './components/dashboard/LandingPage';
+import Home from './components/dashboard/Home';
 import Signup from './components/auth/Signup';
 import Signin from './components/auth/Signin';
 import ForgotPassword from './components/auth/ForgotPassword';
@@ -14,7 +14,7 @@ const App = () => {
         <AuthProvider>
             <Router>
                 <Routes>
-                    <Route path="/" element={<LandingPage />} />
+                    <Route path="/" element={<Home />} />
                     <Route
                         path="/dashboard"
                         element={

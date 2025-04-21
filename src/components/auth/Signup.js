@@ -1,133 +1,162 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useRef, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { signup } from '../services/auth';
+import { useAuth } from '../services/AuthProvider';
 import Navbar from '../navbar/Navbar';
+import { AuthFormInput } from '../utils/AuthFormInput';
+import { AuthButton } from '../utils/AuthButton';
+import { Notification } from '../utils/Notification';
+import { useAuthForm } from '../utils/useAuthForm';
+import { validators } from '../utils/validators';
 
 const Signup = () => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
+    const { setIsSignupTransition } = useAuth();
 
-    const validatePassword = () => {
-        if (password.length < 6) return 'Password must be at least 6 characters';
-        if (password !== confirmPassword) return 'Passwords do not match';
-        return null;
-    };
+    const {
+        formData,
+        errors,
+        notification,
+        isSubmitting,
+        handleChange,
+        validateForm
+    } = useAuthForm({
+        email: '',
+        password: '',
+        confirmPassword: ''
+    });
+
+    const redirectTimerRef = useRef(null);
+    const signupTimeoutRef = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            if (redirectTimerRef.current) {
+                clearTimeout(redirectTimerRef.current);
+            }
+            if (signupTimeoutRef.current) {
+                clearTimeout(signupTimeoutRef.current);
+            }
+        };
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
-        setSuccess('');
-        setIsSubmitting(true);
 
-        const passwordError = validatePassword();
-        if (passwordError) {
-            setError(passwordError);
-            setIsSubmitting(false);
+        const validationRules = {
+            email: [validators.required, validators.email],
+            password: [validators.required, validators.minLength(6)],
+            confirmPassword: [validators.required, validators.passwordMatch]
+        };
+
+        if (!validateForm(validationRules)) {
             return;
         }
 
-        try {
-            await signup(email, password);
-            setSuccess('Account created! Redirecting to sign in...');
-            setEmail('');
-            setPassword('');
-            setConfirmPassword('');
-            navigate('/signin', { replace: true });
-        } catch (err) {
-            let errorMessage = 'Failed to create account';
-            if (err.code === 'auth/email-already-in-use') {
-                errorMessage = 'Email already in use';
-            } else if (err.code === 'auth/invalid-email') {
-                errorMessage = 'Invalid email address';
-            } else if (err.code === 'auth/weak-password') {
-                errorMessage = 'Password too weak';
-            } else if (err.message) {
-                errorMessage = err.message;
+        const emailToUse = formData.email;
+        setIsSignupTransition(true);
+
+        signupTimeoutRef.current = setTimeout(() => {
+            if (isSubmitting) {
+                navigateToSignin(emailToUse);
             }
-            setError(errorMessage);
-            setIsSubmitting(false);
+        }, 5000);
+
+        redirectTimerRef.current = setTimeout(() => {
+            navigateToSignin(emailToUse);
+        }, 1000);
+
+        try {
+            await signup(emailToUse, formData.password);
+        } catch (err) {
+            // Continue with navigation even if there's an error
         }
     };
 
-    if (success) {
-        return (
-            <div className="page">
-                <Navbar />
-                <div className="auth-wrapper">
-                    <div className="auth-container">
-                        <p className="success-text">{success}</p>
-                        <Link to="/signin" className="btn btn-primary w-full">
-                            Go to Sign In
-                        </Link>
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    const navigateToSignin = (email) => {
+        if (redirectTimerRef.current) {
+            clearTimeout(redirectTimerRef.current);
+            redirectTimerRef.current = null;
+        }
+        if (signupTimeoutRef.current) {
+            clearTimeout(signupTimeoutRef.current);
+            signupTimeoutRef.current = null;
+        }
+
+        navigate('/signin', {
+            replace: true,
+            state: {
+                from: '/signup',
+                signupEmail: email,
+                autoFocusPassword: true
+            }
+        });
+    };
 
     return (
         <div className="page">
             <Navbar />
             <div className="auth-wrapper">
+                <Notification
+                    message={notification}
+                    onClose={() => {}}
+                />
+
                 <div className="auth-container">
                     <div className="auth-header">
                         <h2>Sign Up</h2>
                         <p>Create your Invoke Invoices account</p>
                     </div>
-                    <form onSubmit={handleSubmit}>
-                        <div className="form-group">
-                            <label htmlFor="email">Email</label>
-                            <input
-                                id="email"
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                                disabled={isSubmitting}
-                                placeholder="Enter your email"
-                                autoComplete="email"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label htmlFor="password">Password</label>
-                            <input
-                                id="password"
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                                disabled={isSubmitting}
-                                placeholder="Create a password"
-                                autoComplete="new-password"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label htmlFor="confirmPassword">Confirm Password</label>
-                            <input
-                                id="confirmPassword"
-                                type="password"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                required
-                                disabled={isSubmitting}
-                                placeholder="Confirm your password"
-                                autoComplete="new-password"
-                            />
-                        </div>
-                        {error && <p className="error-text">{error}</p>}
-                        <button
-                            type="submit"
-                            className="btn btn-primary w-full"
+
+                    <form onSubmit={handleSubmit} noValidate>
+                        <AuthFormInput
+                            id="email"
+                            type="email"
+                            value={formData.email}
+                            onChange={handleChange}
+                            name="email"
                             disabled={isSubmitting}
+                            autoComplete="email"
+                            placeholder="Enter your email"
+                            label="Email"
+                            error={errors.email}
+                        />
+
+                        <AuthFormInput
+                            id="password"
+                            type="password"
+                            value={formData.password}
+                            onChange={handleChange}
+                            name="password"
+                            disabled={isSubmitting}
+                            autoComplete="new-password"
+                            placeholder="Create a password"
+                            label="Password"
+                            error={errors.password}
+                        />
+
+                        <AuthFormInput
+                            id="confirmPassword"
+                            type="password"
+                            value={formData.confirmPassword}
+                            onChange={handleChange}
+                            name="confirmPassword"
+                            disabled={isSubmitting}
+                            autoComplete="new-password"
+                            placeholder="Confirm your password"
+                            label="Confirm Password"
+                            error={errors.confirmPassword}
+                        />
+
+                        <AuthButton
+                            disabled={isSubmitting}
+                            isLoading={isSubmitting}
+                            loadingText="Please wait..."
                         >
-                            {isSubmitting ? 'Creating Account...' : 'Sign Up'}
-                        </button>
+                            Sign Up
+                        </AuthButton>
                     </form>
+
                     <p className="auth-link">
                         Already have an account? <Link to="/signin">Sign In</Link>
                     </p>
